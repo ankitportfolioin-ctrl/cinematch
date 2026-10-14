@@ -1,1 +1,101 @@
 @import "tailwindcss";
+
+@theme {
+  --color-bg: #0A0A0A;
+  --color-surface: #141414;
+  --color-border: #232323;
+  --color-primary: #E63946;
+  --color-accent: #FF7A2F;
+  --color-text: #F5F5F5;
+  --color-muted: #8C8C8C;
+  --font-heading: "Space Grotesk", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+.gradient-btn {
+  background: linear-gradient(135deg, #E63946, #FF7A2F);
+  transition: all 200ms ease;
+}
+
+.gradient-btn:hover {
+  box-shadow: 0 0 20px rgba(230, 57, 70, 0.4), 0 0 40px rgba(255, 122, 47, 0.2);
+  transform: translateY(-1px);
+}
+
+.chip {
+  transition: all 200ms ease;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.chip:hover {
+  border-color: #FF7A2F;
+  box-shadow: 0 0 12px rgba(255, 122, 47, 0.2);
+}
+
+.chip-selected {
+  border-color: #FF7A2F !important;
+  background: rgba(255, 122, 47, 0.1) !important;
+  box-shadow: 0 0 16px rgba(255, 122, 47, 0.3);
+}
+
+.progress-bar {
+  background: linear-gradient(90deg, #E63946, #FF7A2F);
+  transition: width 300ms ease;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  transition: all 200ms ease;
+}
+
+.card:hover {
+  border-color: rgba(230, 57, 70, 0.3);
+  box-shadow: 0 0 24px rgba(230, 57, 70, 0.1);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.loading-glow {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fade-in 400ms ease forwards;
+}
+
+.toggle-chip {
+  transition: all 200ms ease;
+}
+
+.toggle-chip-active {
+  background: rgba(255, 122, 47, 0.15);
+  border-color: #FF7A2F;
+  color: #FF7A2F;
+}
