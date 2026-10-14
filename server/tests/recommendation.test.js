@@ -89,6 +89,38 @@ describe('Query Parser', () => {
       expect(result.genres).toContain('Action');
       expect(result.likedTitles).toContain('The Godfather');
     });
+
+    test('uses word boundaries to avoid false positives', () => {
+      // "action" should not match "reactionary"
+      const result = parseUserQuery('a reactionary movie');
+      expect(result.genres).not.toContain('Action');
+      
+      // "tired" should not match "entired"
+      const result2 = parseUserQuery('an entired collection');
+      expect(result2.watchEffort).toBeNull();
+    });
+
+    test('love keyword does not set romantic mood when used for title reference', () => {
+      const result = parseUserQuery('I love The Godfather');
+      expect(result.likedTitles).toContain('The Godfather');
+      expect(result.mood).not.toContain('romantic');
+    });
+
+    test('old keyword sets releasePeriod to classic, not recent', () => {
+      const result = parseUserQuery('I want old classic movies');
+      expect(result.releasePeriod).toBe('classic');
+    });
+
+    test('new keyword sets releasePeriod to recent', () => {
+      const result = parseUserQuery('I want new recent movies');
+      expect(result.releasePeriod).toBe('recent');
+    });
+
+    test('detects comforting + horror conflict', () => {
+      const result = parseUserQuery('I want something comforting but also horror');
+      expect(result.clarificationNeeded).toBe(true);
+      expect(result.clarificationQuestion).toContain('comforting');
+    });
   });
 
   describe('validatePreferences', () => {

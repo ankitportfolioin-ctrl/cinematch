@@ -422,8 +422,33 @@ app.post('/api/smart-recommend', async (req, res) => {
 
     // Step 2: Resolve liked titles to TMDB IDs
     let resolvedTitles = [];
+    let ambiguousTitles = [];
     if (preferences.likedTitles.length > 0) {
       resolvedTitles = await resolveTitles(preferences.likedTitles, preferences.mediaType, tmdbFetch);
+      
+      // Check for ambiguous titles that need user clarification
+      for (const resolved of resolvedTitles) {
+        if (resolved.ambiguous && resolved.alternatives && resolved.alternatives.length > 0) {
+          ambiguousTitles.push({
+            originalQuery: resolved.title,
+            bestMatch: {
+              id: resolved.id,
+              title: resolved.title,
+              year: resolved.year,
+            },
+            alternatives: resolved.alternatives,
+          });
+        }
+      }
+    }
+
+    // If there are ambiguous titles, return them for user clarification
+    if (ambiguousTitles.length > 0) {
+      return res.json({
+        movies: [],
+        ambiguousTitles,
+        clarification: 'We found multiple matches for some titles you mentioned. Please confirm which ones you meant.',
+      });
     }
 
     // Step 3: Retrieve candidates

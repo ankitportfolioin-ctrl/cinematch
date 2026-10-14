@@ -3,6 +3,7 @@ import Hero from './components/Hero';
 import WizardStep from './components/WizardStep';
 import Results from './components/Results';
 import SmartSearch from './components/SmartSearch';
+import TitleDisambiguation from './components/TitleDisambiguation';
 import { Movie, WizardAnswers } from './types';
 import { getMockMovies } from './mockData';
 
@@ -38,6 +39,7 @@ export default function App() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [excludeIds, setExcludeIds] = useState<number[]>([]);
   const [clarification, setClarification] = useState<string | null>(null);
+  const [ambiguousTitles, setAmbiguousTitles] = useState<any[]>([]);
 
   const progress = screen === 'wizard' ? ((step + 1) / TOTAL_STEPS) * 100 : 0;
 
@@ -81,6 +83,16 @@ export default function App() {
       });
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
+      
+      // Check if there are ambiguous titles that need user clarification
+      if (data.ambiguousTitles && data.ambiguousTitles.length > 0) {
+        setAmbiguousTitles(data.ambiguousTitles);
+        setClarification(data.clarification || null);
+        setMovies([]);
+        setScreen('results');
+        return;
+      }
+      
       setMovies(data.movies);
       setExcludeIds([...excludeIds, ...data.movies.map((m: Movie) => m.id)]);
       setClarification(data.clarification || null);
@@ -353,7 +365,19 @@ export default function App() {
             <p className="text-[#8C8C8C] text-lg">Finding your perfect movies...</p>
           </div>
         )}
-        {screen === 'results' && (
+        {screen === 'results' && ambiguousTitles.length > 0 && (
+          <TitleDisambiguation
+            ambiguousTitles={ambiguousTitles}
+            onConfirm={() => {
+              // For now, just clear ambiguous titles and show empty results
+              // In a full implementation, we'd re-run the search with confirmed titles
+              setAmbiguousTitles([]);
+              setClarification(null);
+            }}
+            onCancel={handleStartOver}
+          />
+        )}
+        {screen === 'results' && ambiguousTitles.length === 0 && (
           <Results
             movies={movies}
             onShowMore={handleShowMore}

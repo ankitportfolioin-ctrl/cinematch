@@ -27,7 +27,7 @@ const MOOD_KEYWORDS = {
   cheerful: { mood: 'uplifting' },
   
   romantic: { mood: 'romantic' },
-  love: { mood: 'romantic' },
+  // Removed 'love' - too ambiguous, conflicts with title extraction like "I love The Godfather"
   
   curious: { mood: 'thought-provoking' },
   'mind-bending': { mood: 'thought-provoking' },
@@ -77,22 +77,28 @@ const EXCLUDE_KEYWORDS = {
 
 // Runtime patterns
 const RUNTIME_PATTERNS = [
-  { regex: /under\s+(\d+)\s*(min|minute|hour|hr)/i, handler: (match) => {
+  { regex: /under\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
     const num = parseInt(match[1]);
     const unit = match[2].toLowerCase();
     return unit.startsWith('h') ? num * 60 : num;
   }},
-  { regex: /less than\s+(\d+)\s*(min|minute|hour|hr)/i, handler: (match) => {
+  { regex: /less than\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
     const num = parseInt(match[1]);
     const unit = match[2].toLowerCase();
     return unit.startsWith('h') ? num * 60 : num;
   }},
-  { regex: /around\s+(\d+)\s*(min|minute|hour|hr)/i, handler: (match) => {
+  { regex: /around\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
     const num = parseInt(match[1]);
     const unit = match[2].toLowerCase();
     return unit.startsWith('h') ? num * 60 : num;
   }},
-  { regex: /(\d+)\s*(min|minute|hour|hr)/i, handler: (match) => {
+  { regex: /about\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit.startsWith('h') ? num * 60 : num;
+  }},
+  // Only match standalone runtime mentions, not in titles
+  { regex: /(?:^|\s)(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)(?:\s|$|[.,!?])/i, handler: (match) => {
     const num = parseInt(match[1]);
     const unit = match[2].toLowerCase();
     return unit.startsWith('h') ? num * 60 : num;
@@ -164,7 +170,9 @@ export function parseUserQuery(text = '', structuredInputs = {}) {
 
     // Extract mood/intensity/watchEffort
     for (const [keyword, hints] of Object.entries(MOOD_KEYWORDS)) {
-      if (lowerText.includes(keyword)) {
+      // Use word boundary matching to avoid false positives
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText)) {
         if (hints.mood && !preferences.mood.includes(hints.mood)) {
           preferences.mood.push(hints.mood);
         }
@@ -179,7 +187,9 @@ export function parseUserQuery(text = '', structuredInputs = {}) {
 
     // Extract genres
     for (const [keyword, genre] of Object.entries(GENRE_KEYWORDS)) {
-      if (lowerText.includes(keyword) && !preferences.genres.includes(genre)) {
+      // Use word boundary matching
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText) && !preferences.genres.includes(genre)) {
         preferences.genres.push(genre);
       }
     }
@@ -218,14 +228,15 @@ export function parseUserQuery(text = '', structuredInputs = {}) {
     // Extract content exclusions
     for (const [category, keywords] of Object.entries(EXCLUDE_KEYWORDS)) {
       for (const keyword of keywords) {
-        if (lowerText.includes(keyword)) {
+        const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(lowerText)) {
           if (category === 'violent' || category === 'scary') {
             if (!preferences.excludeContent.includes(category)) {
               preferences.excludeContent.push(category);
             }
           }
           if (category === 'old') {
-            preferences.releasePeriod = 'recent';
+            preferences.releasePeriod = 'classic';
           }
           if (category === 'new') {
             preferences.releasePeriod = 'recent';
@@ -238,6 +249,22 @@ export function parseUserQuery(text = '', structuredInputs = {}) {
     if (preferences.watchEffort === 'low' && preferences.intensity === 'high') {
       preferences.clarificationNeeded = true;
       preferences.clarificationQuestion = 'You mentioned wanting something easy but also intense. Would you prefer easy-to-follow action or something more intense?';
+    }
+    
+    // Detect other common conflicts
+    if (preferences.mood.includes('comforting') && preferences.genres.includes('Horror')) {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You want something comforting but also horror. Would you prefer a lighter horror or skip the horror?';
+    }
+    
+    if (preferences.mood.includes('uplifting') && preferences.genres.includes('Thriller')) {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You want something uplifting but also a thriller. Thrillers can be tense - is that okay?';
+    }
+    
+    if (preferences.maxRuntimeMinutes && preferences.maxRuntimeMinutes < 90 && preferences.genres.includes('Drama')) {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You want a short movie under 90 minutes but also drama. Dramas often run longer - should I prioritize runtime or genre?';
     }
   }
 

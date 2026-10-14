@@ -15,12 +15,21 @@ const EXAMPLE_QUERIES = [
 
 export default function SmartSearch({ onSearch, onBack }: SmartSearchProps) {
   const [query, setQuery] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      onSearch(query.trim());
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setValidationError('Please enter a description of what you\'d like to watch.');
+      return;
     }
+    if (trimmed.length < 3) {
+      setValidationError('Please provide a bit more detail about what you\'re looking for.');
+      return;
+    }
+    setValidationError('');
+    onSearch(trimmed);
   };
 
   const handleExampleClick = (example: string) => {
@@ -42,11 +51,19 @@ export default function SmartSearch({ onSearch, onBack }: SmartSearchProps) {
       <form onSubmit={handleSubmit} className="mb-8">
         <textarea
           value={query}
-          onChange={(e) => setQuery(e.target.value.slice(0, 500))}
+          onChange={(e) => {
+            setQuery(e.target.value.slice(0, 500));
+            setValidationError('');
+          }}
           placeholder="e.g., I'm tired, want an action movie, and I like The Godfather..."
           rows={4}
-          className="w-full bg-[#141414] border border-[#232323] rounded-2xl px-5 py-4 text-[#F5F5F5] placeholder-[#8C8C8C] focus:outline-none focus:border-[#FF7A2F] transition-colors duration-200 resize-none text-base"
+          className={`w-full bg-[#141414] border rounded-2xl px-5 py-4 text-[#F5F5F5] placeholder-[#8C8C8C] focus:outline-none transition-colors duration-200 resize-none text-base ${
+            validationError ? 'border-[#E63946]' : 'border-[#232323] focus:border-[#FF7A2F]'
+          }`}
         />
+        {validationError && (
+          <p className="text-[#E63946] text-sm mt-2">{validationError}</p>
+        )}
         <div className="flex items-center justify-between mt-3">
           <span className="text-xs text-[#8C8C8C]">{query.length}/500</span>
           <button
