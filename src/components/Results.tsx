@@ -1,5 +1,7 @@
 import { Movie } from '../types';
-import { FALLBACK_POSTER } from '../mockData';
+import { makeFallbackPoster } from '../mockData';
+
+const DEFAULT_FALLBACK = makeFallbackPoster('Movie', '#1a1a1a', '#232323');
 
 interface ResultsProps {
   movies: Movie[];
@@ -65,11 +67,11 @@ function MovieCard({ movie, delay }: { movie: Movie; delay: number }) {
       {/* Poster */}
       <div className="relative aspect-[2/3] bg-[#1a1a1a] overflow-hidden">
         <img
-          src={movie.posterUrl || FALLBACK_POSTER}
+          src={movie.posterUrl || DEFAULT_FALLBACK}
           alt={movie.title}
           className="w-full h-full object-cover"
           onError={(e) => {
-            (e.target as HTMLImageElement).src = FALLBACK_POSTER;
+            (e.target as HTMLImageElement).src = DEFAULT_FALLBACK;
           }}
         />
         {movie.isHiddenGem && (
