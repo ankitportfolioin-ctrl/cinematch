@@ -26,6 +26,8 @@ export interface Movie {
   providers: { name: string; logoUrl: string }[];
   reason: string;
   isHiddenGem?: boolean;
+  matchScore?: number;
+  mediaType?: string;
 }
 
 export interface UserData {

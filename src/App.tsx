@@ -2,10 +2,11 @@ import { useState, useCallback } from 'react';
 import Hero from './components/Hero';
 import WizardStep from './components/WizardStep';
 import Results from './components/Results';
+import SmartSearch from './components/SmartSearch';
 import { Movie, WizardAnswers } from './types';
 import { getMockMovies } from './mockData';
 
-type Screen = 'hero' | 'wizard' | 'loading' | 'results';
+type Screen = 'hero' | 'wizard' | 'smart-search' | 'loading' | 'results';
 
 const MOODS = ['Happy', 'Relaxed', 'Tired', 'Stressed', 'Romantic', 'Adventurous', 'Curious', 'Sad'];
 const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller'];
@@ -36,19 +37,68 @@ export default function App() {
   });
   const [movies, setMovies] = useState<Movie[]>([]);
   const [excludeIds, setExcludeIds] = useState<number[]>([]);
+  const [clarification, setClarification] = useState<string | null>(null);
 
   const progress = screen === 'wizard' ? ((step + 1) / TOTAL_STEPS) * 100 : 0;
 
-  const handleStart = () => {
+  const handleStartWizard = () => {
     setScreen('wizard');
     setStep(0);
+  };
+
+  const handleStartSmartSearch = () => {
+    setScreen('smart-search');
+  };
+
+  const handleSmartSearch = async (query: string) => {
+    setScreen('loading');
+    setClarification(null);
+
+    const maxRuntimeMap: Record<string, number> = {
+      'Under 90 min': 90,
+      'Under 2 hours': 120,
+      'Under 2.5 hours': 150,
+      'Any length': 300,
+    };
+
+    const structuredInputs = {
+      mood: answers.mood || undefined,
+      genres: answers.genres.length > 0 ? answers.genres : undefined,
+      audience: answers.audience || undefined,
+      maxRuntime: answers.maxRuntime || undefined,
+      languages: answers.languages.length > 0 ? answers.languages : undefined,
+    };
+
+    try {
+      const res = await fetch('/api/smart-recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          structuredInputs,
+          excludeIds,
+        }),
+      });
+      if (!res.ok) throw new Error('API error');
+      const data = await res.json();
+      setMovies(data.movies);
+      setExcludeIds([...excludeIds, ...data.movies.map((m: Movie) => m.id)]);
+      setClarification(data.clarification || null);
+      setScreen('results');
+    } catch {
+      // Fallback to mock data
+      const mockMovies = getMockMovies(answers, excludeIds);
+      setMovies(mockMovies);
+      setExcludeIds([...excludeIds, ...mockMovies.map(m => m.id)]);
+      setScreen('results');
+    }
   };
 
   const handleNext = () => {
     if (step < TOTAL_STEPS - 1) {
       setStep(step + 1);
     } else {
-      fetchMovies();
+      fetchMoviesWizard();
     }
   };
 
@@ -60,7 +110,7 @@ export default function App() {
     }
   };
 
-  const fetchMovies = async () => {
+  const fetchMoviesWizard = async () => {
     setScreen('loading');
     const maxRuntimeMap: Record<string, number> = {
       'Under 90 min': 90,
@@ -101,7 +151,12 @@ export default function App() {
   };
 
   const handleShowMore = () => {
-    fetchMovies();
+    if (screen === 'smart-search') {
+      // Re-run smart search
+      fetchMoviesWizard();
+    } else {
+      fetchMoviesWizard();
+    }
   };
 
   const handleStartOver = () => {
@@ -118,6 +173,7 @@ export default function App() {
     });
     setExcludeIds([]);
     setMovies([]);
+    setClarification(null);
   };
 
   const updateAnswer = useCallback(<K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]) => {
@@ -257,7 +313,9 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center px-4 py-8 md:py-12">
-        {screen === 'hero' && <Hero onStart={handleStart} />}
+        {screen === 'hero' && (
+          <Hero onStartWizard={handleStartWizard} onStartSmartSearch={handleStartSmartSearch} />
+        )}
         {screen === 'wizard' && (
           <div className="w-full max-w-2xl fade-in" key={step}>
             {renderWizardStep()}
@@ -283,6 +341,12 @@ export default function App() {
             </div>
           </div>
         )}
+        {screen === 'smart-search' && (
+          <SmartSearch
+            onSearch={handleSmartSearch}
+            onBack={() => setScreen('hero')}
+          />
+        )}
         {screen === 'loading' && (
           <div className="flex flex-col items-center gap-6">
             <div className="w-16 h-16 rounded-full loading-glow" style={{ background: 'linear-gradient(135deg, #E63946, #FF7A2F)' }} />
@@ -294,6 +358,7 @@ export default function App() {
             movies={movies}
             onShowMore={handleShowMore}
             onStartOver={handleStartOver}
+            clarification={clarification}
           />
         )}
       </main>

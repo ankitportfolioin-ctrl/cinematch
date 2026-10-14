@@ -7,9 +7,10 @@ interface ResultsProps {
   movies: Movie[];
   onShowMore: () => void;
   onStartOver: () => void;
+  clarification?: string | null;
 }
 
-export default function Results({ movies, onShowMore, onStartOver }: ResultsProps) {
+export default function Results({ movies, onShowMore, onStartOver, clarification }: ResultsProps) {
   if (movies.length === 0) {
     return (
       <div className="text-center fade-in">
@@ -27,6 +28,15 @@ export default function Results({ movies, onShowMore, onStartOver }: ResultsProp
 
   return (
     <div className="w-full max-w-5xl fade-in">
+      {/* Clarification message */}
+      {clarification && (
+        <div className="mb-6 p-4 rounded-2xl bg-[#141414] border border-[#FF7A2F] text-center">
+          <p className="text-[#FF7A2F] text-sm font-medium mb-2">💡 Quick question</p>
+          <p className="text-[#F5F5F5] text-sm">{clarification}</p>
+          <p className="text-[#8C8C8C] text-xs mt-2">You can skip this and use the results below.</p>
+        </div>
+      )}
+
       <h2
         className="text-2xl md:text-3xl font-bold text-center mb-8"
         style={{ fontFamily: '"Space Grotesk", sans-serif' }}
@@ -118,9 +128,68 @@ function MovieCard({ movie, delay }: { movie: Movie; delay: number }) {
         </p>
 
         {/* Why this fits */}
-        <p className="text-sm italic mb-3" style={{ color: '#FF7A2F' }}>
+        <p className="text-sm italic mb-2" style={{ color: '#FF7A2F' }}>
           "{movie.reason}"
         </p>
+
+        {/* Match score */}
+        {movie.matchScore !== undefined && (
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex-1 h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(100, movie.matchScore)}%`,
+                  background: 'linear-gradient(90deg, #E63946, #FF7A2F)',
+                }}
+              />
+            </div>
+            <span className="text-xs text-[#8C8C8C]">{movie.matchScore}% match</span>
+          </div>
+        )}
+
+        {/* Feedback buttons */}
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => {
+              try {
+                const feedback = JSON.parse(localStorage.getItem('movieNightPicker_feedback') || '[]');
+                feedback.push({ tmdbId: movie.id, mediaType: movie.mediaType || 'movie', feedbackType: 'more_like_this', timestamp: Date.now() });
+                localStorage.setItem('movieNightPicker_feedback', JSON.stringify(feedback));
+              } catch {}
+            }}
+            className="text-xs text-[#8C8C8C] hover:text-[#FF7A2F] transition-colors px-2 py-1 rounded border border-[#232323] hover:border-[#FF7A2F]"
+            title="More like this"
+          >
+            👍
+          </button>
+          <button
+            onClick={() => {
+              try {
+                const feedback = JSON.parse(localStorage.getItem('movieNightPicker_feedback') || '[]');
+                feedback.push({ tmdbId: movie.id, mediaType: movie.mediaType || 'movie', feedbackType: 'not_interested', timestamp: Date.now() });
+                localStorage.setItem('movieNightPicker_feedback', JSON.stringify(feedback));
+              } catch {}
+            }}
+            className="text-xs text-[#8C8C8C] hover:text-[#E63946] transition-colors px-2 py-1 rounded border border-[#232323] hover:border-[#E63946]"
+            title="Not interested"
+          >
+            👎
+          </button>
+          <button
+            onClick={() => {
+              try {
+                const feedback = JSON.parse(localStorage.getItem('movieNightPicker_feedback') || '[]');
+                feedback.push({ tmdbId: movie.id, mediaType: movie.mediaType || 'movie', feedbackType: 'already_watched', timestamp: Date.now() });
+                localStorage.setItem('movieNightPicker_feedback', JSON.stringify(feedback));
+              } catch {}
+            }}
+            className="text-xs text-[#8C8C8C] hover:text-[#F5F5F5] transition-colors px-2 py-1 rounded border border-[#232323] hover:border-[#F5F5F5]"
+            title="Already watched"
+          >
+            ✓
+          </button>
+        </div>
 
         {/* Where to watch */}
         <div className="mt-auto pt-3 border-t border-[#232323]">

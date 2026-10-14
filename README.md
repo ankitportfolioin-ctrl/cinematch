@@ -1,6 +1,18 @@
 # 🎬 Movie Night Picker
 
-A beautiful, cinematic movie recommendation app that asks you a few quick questions and picks 3 perfect movies for your evening.
+A beautiful, cinematic movie recommendation app with **natural language query support**. Describe your perfect movie night in plain English, or use the step-by-step wizard.
+
+## ✨ New: Natural Language Queries
+
+**Just describe what you want:**
+- "I'm tired, want an action movie, and I like The Godfather"
+- "Light comedy under 100 minutes"
+- "Something romantic like Before Sunrise"
+- "Intense thriller but nothing too violent"
+
+The app understands your mood, genres, runtime preferences, and even resolves movie references to find similar titles!
+
+👉 See [SMART_RECOMMENDATION_SYSTEM.md](SMART_RECOMMENDATION_SYSTEM.md) for full details.
 
 ## ✨ Features
 

@@ -4,6 +4,11 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { parseUserQuery, validatePreferences } from './modules/queryParser.js';
+import { resolveTitles, getSimilarTitles, getRecommendations } from './modules/titleResolver.js';
+import { retrieveCandidates, getFullDetails } from './modules/candidateRetriever.js';
+import { rankCandidates } from './modules/ranker.js';
+import { generateExplanation, generateClarification } from './modules/explainer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -395,6 +400,177 @@ app.post('/api/recommend', async (req, res) => {
     res.json({ movies });
   } catch (error) {
     console.error('Recommendation error:', error.message);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
+// ============================================
+// SMART RECOMMENDATION ENDPOINT (Natural Language)
+// ============================================
+app.post('/api/smart-recommend', async (req, res) => {
+  try {
+    const { query, structuredInputs = {}, excludeIds = [], region = DEFAULT_REGION } = req.body;
+
+    // Validate input
+    if (!query && Object.keys(structuredInputs).length === 0) {
+      return res.status(400).json({ error: 'Please provide a query or structured inputs.' });
+    }
+
+    // Step 1: Parse query into structured preferences
+    let preferences = parseUserQuery(query, structuredInputs);
+    preferences = validatePreferences(preferences);
+
+    // Step 2: Resolve liked titles to TMDB IDs
+    let resolvedTitles = [];
+    if (preferences.likedTitles.length > 0) {
+      resolvedTitles = await resolveTitles(preferences.likedTitles, preferences.mediaType, tmdbFetch);
+    }
+
+    // Step 3: Retrieve candidates
+    const candidates = await retrieveCandidates(
+      preferences,
+      resolvedTitles,
+      tmdbFetch,
+      { region, excludeIds }
+    );
+
+    if (candidates.length === 0) {
+      return res.json({
+        movies: [],
+        clarification: generateClarification(preferences),
+        message: 'No movies found matching your preferences. Try broadening your search.',
+      });
+    }
+
+    // Step 4: Get full details for top candidates (limit API calls)
+    const topCandidates = candidates.slice(0, 15);
+    const detailedCandidates = await Promise.all(
+      topCandidates.map(async (candidate) => {
+        const details = await getFullDetails(candidate.id, candidate.mediaType, tmdbFetch);
+        return details ? { ...candidate, ...details } : candidate;
+      })
+    );
+
+    // Step 5: Filter out hard constraints
+    const filtered = detailedCandidates.filter(candidate => {
+      // Exclude disliked titles
+      if (preferences.dislikedTitles.length > 0) {
+        const titleLower = (candidate.title || '').toLowerCase();
+        if (preferences.dislikedTitles.some(t => titleLower.includes(t.toLowerCase()))) {
+          return false;
+        }
+      }
+
+      // Exclude genres
+      if (preferences.excludeGenres.length > 0) {
+        const candidateGenres = candidate.genres || [];
+        if (candidateGenres.some(g => preferences.excludeGenres.includes(g))) {
+          return false;
+        }
+      }
+
+      // Runtime constraint
+      if (preferences.maxRuntimeMinutes && candidate.runtime) {
+        if (candidate.runtime > preferences.maxRuntimeMinutes + 30) {
+          return false; // Allow 30 min grace
+        }
+      }
+
+      // Content exclusions
+      if (preferences.excludeContent.includes('violent')) {
+        const violentGenres = ['Action', 'Thriller', 'Horror', 'War'];
+        const candidateGenres = candidate.genres || [];
+        if (candidateGenres.some(g => violentGenres.includes(g))) {
+          return false;
+        }
+      }
+
+      if (preferences.excludeContent.includes('scary')) {
+        const scaryGenres = ['Horror', 'Thriller'];
+        const candidateGenres = candidate.genres || [];
+        if (candidateGenres.some(g => scaryGenres.includes(g))) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Step 6: Rank candidates
+    const ranked = rankCandidates(filtered, preferences, resolvedTitles);
+
+    // Step 7: Get top 3 and generate explanations
+    const top3 = ranked.slice(0, 3);
+    const movies = await Promise.all(
+      top3.map(async (candidate) => {
+        // Get watch providers
+        let providers = getCachedProviders(candidate.id);
+        if (!providers) {
+          try {
+            const providerData = await tmdbFetch(`/movie/${candidate.id}/watch/providers`);
+            const regionProviders = providerData.results?.[region] || {};
+            providers = [];
+
+            if (regionProviders.flatrate) {
+              providers.push(...regionProviders.flatrate.map(p => ({
+                name: p.provider_name,
+                logoUrl: `https://image.tmdb.org/t/p/w92${p.logo_path}`,
+                type: 'streaming',
+              })));
+            }
+            if (regionProviders.rent) {
+              providers.push(...regionProviders.rent.map(p => ({
+                name: `${p.provider_name} (rent)`,
+                logoUrl: `https://image.tmdb.org/t/p/w92${p.logo_path}`,
+                type: 'rent',
+              })));
+            }
+
+            setCachedProviders(candidate.id, providers);
+          } catch {
+            providers = [];
+          }
+        }
+
+        // Generate explanation
+        const reason = generateExplanation(candidate, preferences, resolvedTitles);
+
+        return {
+          id: candidate.id,
+          mediaType: candidate.mediaType,
+          title: candidate.title,
+          year: candidate.year,
+          genres: candidate.genres || [],
+          runtime: candidate.runtime || 0,
+          rating: candidate.voteAverage || 0,
+          voteCount: candidate.voteCount || 0,
+          overview: candidate.overview || '',
+          posterUrl: candidate.posterPath
+            ? `https://image.tmdb.org/t/p/w500${candidate.posterPath}`
+            : '',
+          providers: providers.slice(0, 4),
+          reason,
+          matchScore: candidate.totalScore,
+          isHiddenGem: (candidate.popularity || 0) < 40 && (candidate.voteAverage || 0) >= 7,
+        };
+      })
+    );
+
+    // Step 8: Check for clarification needs
+    const clarification = generateClarification(preferences);
+
+    res.json({
+      movies,
+      clarification,
+      preferences: {
+        mood: preferences.mood,
+        genres: preferences.genres,
+        maxRuntime: preferences.maxRuntimeMinutes,
+        likedTitles: preferences.likedTitles,
+      },
+    });
+  } catch (error) {
+    console.error('Smart recommendation error:', error.message);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 });
