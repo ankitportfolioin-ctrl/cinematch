@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Hero from './components/Hero';
 import WizardStep from './components/WizardStep';
 import Results from './components/Results';
@@ -40,6 +40,19 @@ export default function App() {
   const [excludeIds, setExcludeIds] = useState<number[]>([]);
   const [clarification, setClarification] = useState<string | null>(null);
   const [ambiguousTitles, setAmbiguousTitles] = useState<any[]>([]);
+  const [appMode, setAppMode] = useState<'live' | 'demo' | 'unknown'>('unknown');
+
+  // Check app mode on mount
+  useEffect(() => {
+    fetch('/api/status')
+      .then(res => res.json())
+      .then(data => {
+        setAppMode(data.mode);
+      })
+      .catch(() => {
+        setAppMode('demo');
+      });
+  }, []);
 
   const progress = screen === 'wizard' ? ((step + 1) / TOTAL_STEPS) * 100 : 0;
 
@@ -326,7 +339,7 @@ export default function App() {
       {/* Main content */}
       <main className="flex-1 flex items-center justify-center px-4 py-8 md:py-12">
         {screen === 'hero' && (
-          <Hero onStartWizard={handleStartWizard} onStartSmartSearch={handleStartSmartSearch} />
+          <Hero onStartWizard={handleStartWizard} onStartSmartSearch={handleStartSmartSearch} appMode={appMode} />
         )}
         {screen === 'wizard' && (
           <div className="w-full max-w-2xl fade-in" key={step}>

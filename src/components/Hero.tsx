@@ -1,11 +1,24 @@
 interface HeroProps {
   onStartWizard: () => void;
   onStartSmartSearch: () => void;
+  appMode?: 'live' | 'demo' | 'unknown';
 }
 
-export default function Hero({ onStartWizard, onStartSmartSearch }: HeroProps) {
+export default function Hero({ onStartWizard, onStartSmartSearch, appMode = 'unknown' }: HeroProps) {
   return (
     <div className="flex flex-col items-center text-center max-w-lg relative fade-in">
+      {/* Mode indicator */}
+      {appMode !== 'unknown' && (
+        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 text-sm font-medium ${
+          appMode === 'live' 
+            ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+            : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+        }`}>
+          <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+          {appMode === 'live' ? 'Live Mode - Using TMDB API' : 'Demo Mode - Using Sample Data'}
+        </div>
+      )}
+      
       {/* Decorative background glows */}
       <div
         className="absolute w-80 h-80 rounded-full opacity-[0.07] blur-[100px] -top-20"

@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
-dotenv.config();
+// Load .env file if it exists, but don't override existing environment variables
+dotenv.config({ override: false });
 
 import express from 'express';
 import cors from 'cors';
@@ -228,6 +229,27 @@ function getTemplateReason(movie, mood, genres) {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
+});
+
+// Status endpoint - shows configuration without exposing secrets
+app.get('/api/status', (req, res) => {
+  const tmdbConfigured = !!process.env.TMDB_API_KEY && process.env.TMDB_API_KEY !== 'your_tmdb_api_key_here';
+  const geminiConfigured = !!process.env.GEMINI_API_KEY;
+  
+  res.json({
+    environment: process.env.NODE_ENV || 'development',
+    tmdb: {
+      configured: tmdbConfigured,
+      message: tmdbConfigured ? '✅ TMDB API key is configured' : '❌ TMDB_API_KEY not set - using mock data'
+    },
+    gemini: {
+      configured: geminiConfigured,
+      message: geminiConfigured ? '✅ Gemini API key is configured' : '⚠️ GEMINI_API_KEY not set - using template reasons'
+    },
+    region: process.env.DEFAULT_REGION || 'US',
+    port: process.env.PORT || 3001,
+    mode: tmdbConfigured ? 'live' : 'demo'
+  });
 });
 
 // Movie recommendations
