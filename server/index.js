@@ -625,15 +625,28 @@ app.post('/api/smart-recommend', async (req, res) => {
   }
 });
 
-// Serve frontend for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
-});
+// Serve frontend for all other routes (only in local development)
+if (process.env.VERCEL !== '1') {
+  app.get('*', (req, res) => {
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        res.status(500).json({ error: 'Frontend not built. Run "npm run build" first.' });
+      }
+    });
+  });
+}
 
 // ============================================
 // START SERVER
 // ============================================
-app.listen(PORT, () => {
-  console.log(`Movie Night Picker server running on port ${PORT}`);
-  console.log(`AI enabled: ${AI_ENABLED}`);
-});
+// Only start the server if not running on Vercel
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`Movie Night Picker server running on port ${PORT}`);
+    console.log(`AI enabled: ${AI_ENABLED}`);
+  });
+}
+
+// Export for Vercel serverless
+export default app;
