@@ -61,7 +61,18 @@ To use real TMDB data with live streaming availability:
    - TMDB API Key (required): https://www.themoviedb.org/settings/api
    - Gemini API Key (optional, for AI reasons): https://aistudio.google.com/apikey
 
-2. **Set environment variables:**
+2. **Set environment variables** (choose one method):
+
+   **Method A: Using .env file (recommended)**
+   ```bash
+   # Copy the example file
+   cp .env.example .env
+   
+   # Edit .env and add your API keys
+   nano .env  # or use your preferred editor
+   ```
+   
+   **Method B: Using shell export**
    ```bash
    export TMDB_API_KEY="your_tmdb_key_here"
    export GEMINI_API_KEY="your_gemini_key_here"  # optional
@@ -71,7 +82,7 @@ To use real TMDB data with live streaming availability:
    ```bash
    npm install
    npm run build
-   node server/index.js
+   npm start
    ```
 
 4. **Open http://localhost:3001**
