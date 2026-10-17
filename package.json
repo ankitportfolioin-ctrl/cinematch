@@ -9,7 +9,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
     "start": "node server/index.js",
-    "server": "node server/index.js"
+    "server": "node server/index.js",
+    "verify-env": "node verify-env.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
