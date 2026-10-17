@@ -66,13 +66,29 @@ const GENRE_KEYWORDS = {
 
 // Content exclusion keywords
 const EXCLUDE_KEYWORDS = {
-  violent: ['violence', 'violent', 'bloody', 'gory'],
-  scary: ['scary', 'horror', 'frightening', 'terrifying'],
+  violent: ['violence', 'violent', 'bloody', 'gory', 'brutal', 'sadistic', 'gore'],
+  scary: ['scary', 'horror', 'frightening', 'terrifying', 'jump scare', 'jump scares'],
   sad: ['sad', 'depressing', 'tragic', 'death'],
   complex: ['complex', 'complicated', 'confusing', 'hard to follow'],
   long: ['long', 'slow', 'boring'],
   old: ['old', 'classic', 'vintage', 'before 2000'],
   new: ['new', 'recent', 'latest', 'modern'],
+};
+
+// Topic/keyword extraction for semantic matching
+const TOPIC_KEYWORDS = {
+  'money': ['money', 'finance', 'financial', 'wealth', 'rich', 'banking', 'banker'],
+  'heist': ['heist', 'robbery', 'rob', 'steal', 'thief', 'criminal', 'caper'],
+  'wall street': ['wall street', 'stock', 'trading', 'trader', 'investment', 'broker'],
+  'war': ['war', 'military', 'soldier', 'army', 'battle', 'combat'],
+  'space': ['space', 'astronaut', 'galaxy', 'planet', 'alien', 'cosmos'],
+  'detective': ['detective', 'investigation', 'police', 'cop', 'mystery', 'case'],
+  'romance': ['love', 'relationship', 'dating', 'marriage', 'couple', 'romantic'],
+  'survival': ['survival', 'survive', 'stranded', 'lost', 'wilderness', 'escape'],
+  'coming of age': ['growing up', 'teenager', 'adolescent', 'youth', 'coming of age'],
+  'revenge': ['revenge', 'vengeance', 'retribution', 'payback'],
+  'friendship': ['friendship', 'friends', 'buddy', 'companion'],
+  'family': ['family', 'parent', 'child', 'mother', 'father', 'sibling'],
 };
 
 // Runtime patterns
@@ -128,6 +144,7 @@ export function parseUserQuery(text = '', structuredInputs = {}) {
     mediaType: 'movie',
     mood: [],
     genres: [],
+    topics: [],
     likedTitles: [],
     dislikedTitles: [],
     mustInclude: [],
@@ -245,6 +262,16 @@ export function parseUserQuery(text = '', structuredInputs = {}) {
       }
     }
 
+    // Extract topics/keywords
+    for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
+      for (const keyword of keywords) {
+        const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(lowerText) && !preferences.topics.includes(topic)) {
+          preferences.topics.push(topic);
+        }
+      }
+    }
+
     // Detect conflicts for clarification
     if (preferences.watchEffort === 'low' && preferences.intensity === 'high') {
       preferences.clarificationNeeded = true;
@@ -282,6 +309,7 @@ export function validatePreferences(prefs) {
   // Ensure arrays
   validated.mood = Array.isArray(validated.mood) ? validated.mood : [];
   validated.genres = Array.isArray(validated.genres) ? validated.genres : [];
+  validated.topics = Array.isArray(validated.topics) ? validated.topics : [];
   validated.likedTitles = Array.isArray(validated.likedTitles) ? validated.likedTitles : [];
   validated.dislikedTitles = Array.isArray(validated.dislikedTitles) ? validated.dislikedTitles : [];
   validated.excludeGenres = Array.isArray(validated.excludeGenres) ? validated.excludeGenres : [];

@@ -316,3 +316,144 @@ describe('Integration: Full Query Flow', () => {
     expect(preferences.excludeContent).toContain('violent');
   });
 });
+
+/**
+ * Production Readiness Tests
+ */
+describe('Production Readiness', () => {
+  describe('Topic/Keyword Parsing', () => {
+    test('extracts money/finance topics', () => {
+      const result = parseUserQuery('I want movies about money and finance');
+      expect(result.topics).toContain('money');
+    });
+
+    test('extracts heist topics', () => {
+      const result = parseUserQuery('Show me a good heist movie');
+      expect(result.topics).toContain('heist');
+    });
+
+    test('extracts space topics', () => {
+      const result = parseUserQuery('I want something about space and aliens');
+      expect(result.topics).toContain('space');
+    });
+
+    test('extracts multiple topics', () => {
+      const result = parseUserQuery('A war movie with survival themes');
+      expect(result.topics).toContain('war');
+      expect(result.topics).toContain('survival');
+    });
+  });
+
+  describe('Content Exclusion Robustness', () => {
+    test('excludes violent content with various keywords', () => {
+      const queries = [
+        'nothing violent',
+        'no violence please',
+        'avoid bloody movies',
+        'nothing gory',
+        'no brutal content',
+      ];
+      
+      queries.forEach(query => {
+        const result = parseUserQuery(query);
+        expect(result.excludeContent).toContain('violent');
+      });
+    });
+
+    test('excludes scary content with various keywords', () => {
+      const queries = [
+        'nothing scary',
+        'no horror',
+        'avoid frightening movies',
+        'no jump scares',
+      ];
+      
+      queries.forEach(query => {
+        const result = parseUserQuery(query);
+        expect(result.excludeContent).toContain('scary');
+      });
+    });
+  });
+
+  describe('Preference Validation', () => {
+    test('validates topics array', () => {
+      const prefs = { topics: 'money' };
+      const result = validatePreferences(prefs);
+      expect(Array.isArray(result.topics)).toBe(true);
+    });
+
+    test('handles missing topics gracefully', () => {
+      const prefs = {};
+      const result = validatePreferences(prefs);
+      expect(result.topics).toEqual([]);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    test('handles empty query', () => {
+      const result = parseUserQuery('');
+      expect(result.mood).toEqual([]);
+      expect(result.genres).toEqual([]);
+      expect(result.topics).toEqual([]);
+    });
+
+    test('handles whitespace-only query', () => {
+      const result = parseUserQuery('   ');
+      expect(result.mood).toEqual([]);
+      expect(result.genres).toEqual([]);
+    });
+
+    test('handles very long query', () => {
+      const longQuery = 'I want '.repeat(100) + 'comedy';
+      const result = parseUserQuery(longQuery);
+      expect(result.genres).toContain('Comedy');
+    });
+
+    test('handles special characters', () => {
+      const result = parseUserQuery('I want a sci-fi movie! @#$%');
+      expect(result.genres).toContain('Sci-Fi');
+    });
+
+    test('handles non-English characters', () => {
+      const result = parseUserQuery('I want a comedy movie 😊');
+      expect(result.genres).toContain('Comedy');
+    });
+  });
+
+  describe('Structured Input Precedence', () => {
+    test('structured mood overrides parsed mood', () => {
+      const result = parseUserQuery('I feel sad', { mood: 'Happy' });
+      expect(result.mood).toContain('happy');
+      expect(result.mood).not.toContain('emotional');
+    });
+
+    test('structured genres override parsed genres', () => {
+      const result = parseUserQuery('I want comedy', { genres: ['Drama'] });
+      expect(result.genres).toContain('Drama');
+      expect(result.genres).not.toContain('Comedy');
+    });
+
+    test('combines structured and parsed when different fields', () => {
+      const result = parseUserQuery('under 90 minutes', { mood: 'Happy' });
+      expect(result.mood).toContain('happy');
+      expect(result.maxRuntimeMinutes).toBe(90);
+    });
+  });
+
+  describe('Conflict Detection', () => {
+    test('detects tired + intense conflict', () => {
+      const result = parseUserQuery('I am tired but want intense action');
+      expect(result.clarificationNeeded).toBe(true);
+    });
+
+    test('detects comforting + horror conflict', () => {
+      const result = parseUserQuery('I want something comforting but also horror');
+      expect(result.clarificationNeeded).toBe(true);
+    });
+
+    test('no conflict for compatible preferences', () => {
+      const result = parseUserQuery('I want a funny comedy under 100 minutes');
+      expect(result.clarificationNeeded).toBe(false);
+    });
+  });
+});

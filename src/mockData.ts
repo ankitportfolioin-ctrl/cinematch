@@ -50,6 +50,7 @@ interface MovieDB {
   popularity: number; // lower = hidden gem
   languages: string[];
   adult: boolean;
+  topics?: string[];
 }
 
 const MOVIE_DB: MovieDB[] = [
@@ -92,7 +93,7 @@ const MOVIE_DB: MovieDB[] = [
   { id: 4008, title: "Spider-Man: Into the Spider-Verse", year: 2018, genres: ["Animation", "Action", "Adventure"], runtime: 117, rating: 8.4, overview: "Teen Miles Morales becomes Spider-Man and must save the multiverse alongside other Spider-People from different dimensions.", posterUrl: "https://image.tmdb.org/t/p/w500/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg", providers: [PROVIDERS.Netflix], popularity: 88, languages: ["English"], adult: false },
 
   // === MYSTERY / THRILLER (Curious mood) ===
-  { id: 5001, title: "Parasite", year: 2019, genres: ["Thriller", "Drama"], runtime: 132, rating: 8.5, overview: "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.", posterUrl: "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 92, languages: ["Korean"], adult: false },
+  { id: 5001, title: "Parasite", year: 2019, genres: ["Thriller", "Drama"], runtime: 132, rating: 8.5, overview: "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.", posterUrl: "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 92, languages: ["Korean"], adult: false, topics: ["money", "family", "survival"] },
   { id: 5002, title: "The Handmaiden", year: 2016, genres: ["Mystery", "Thriller", "Romance"], runtime: 145, rating: 8.1, overview: "A woman is hired as a handmaiden to a Japanese heiress, but she secretly has a different agenda involving a con man.", posterUrl: "https://image.tmdb.org/t/p/w500/xDw2nMMPtFCoQOfGEMiXQXBlalQ.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 32, languages: ["Korean", "Japanese"], adult: false },
   { id: 5003, title: "Memories of Murder", year: 2003, genres: ["Mystery", "Crime", "Drama"], runtime: 131, rating: 8.1, overview: "In a small town, two detectives struggle to solve the case of a serial killer, the first in Korean history.", posterUrl: "https://image.tmdb.org/t/p/w500/jcgUjx1nYiRYOQYnCKFbRfMnUjB.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 38, languages: ["Korean"], adult: false },
   { id: 5004, title: "Decision to Leave", year: 2022, genres: ["Mystery", "Romance", "Drama"], runtime: 138, rating: 7.4, overview: "A detective investigating a man's death in the mountains begins to suspect the dead man's mysterious wife.", posterUrl: "https://image.tmdb.org/t/p/w500/26Vu6VO8qvCAaVVF8T1Sf7sDhGZ.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 28, languages: ["Korean"], adult: false },
@@ -120,8 +121,8 @@ const MOVIE_DB: MovieDB[] = [
   { id: 8003, title: "The Shape of Water", year: 2017, genres: ["Fantasy", "Romance", "Drama"], runtime: 123, rating: 7.3, overview: "A mute cleaning lady at a high-security government lab falls in love with a mysterious amphibious creature held there.", posterUrl: "https://image.tmdb.org/t/p/w500/6k8GQYxqHjFQvSjJFh5sRjJFh5s.jpg", providers: [PROVIDERS.DisneyPlus], popularity: 45, languages: ["English"], adult: false },
 
   // === SCI-FI (Curious, Adventurous) ===
-  { id: 9001, title: "Arrival", year: 2016, genres: ["Sci-Fi", "Drama", "Mystery"], runtime: 116, rating: 7.9, overview: "A linguist is recruited by the military to communicate with alien lifeforms after twelve mysterious spacecraft land around the world.", posterUrl: "https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpFf.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 70, languages: ["English"], adult: false },
-  { id: 9002, title: "Interstellar", year: 2014, genres: ["Sci-Fi", "Adventure", "Drama"], runtime: 169, rating: 8.4, overview: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.", posterUrl: "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 90, languages: ["English"], adult: false },
+  { id: 9001, title: "Arrival", year: 2016, genres: ["Sci-Fi", "Drama", "Mystery"], runtime: 116, rating: 7.9, overview: "A linguist is recruited by the military to communicate with alien lifeforms after twelve mysterious spacecraft land around the world.", posterUrl: "https://image.tmdb.org/t/p/w500/x2FJsf1ElAgr63Y3PNPtJrcmpFf.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 70, languages: ["English"], adult: false, topics: ["space", "detective"] },
+  { id: 9002, title: "Interstellar", year: 2014, genres: ["Sci-Fi", "Adventure", "Drama"], runtime: 169, rating: 8.4, overview: "A team of explorers travel through a wormhole in space in an attempt to ensure humanity's survival.", posterUrl: "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", providers: [PROVIDERS.PrimeVideo], popularity: 90, languages: ["English"], adult: false, topics: ["space", "survival", "family"] },
   { id: 9003, title: "The Wandering Earth", year: 2019, genres: ["Sci-Fi", "Adventure"], runtime: 125, rating: 6.8, overview: "The sun is dying, and a group of astronauts must travel across space to find a new home for humanity.", posterUrl: "https://image.tmdb.org/t/p/w500/z8E2fGkFjQvSjJFh5sRjJFh5s.jpg", providers: [PROVIDERS.Netflix], popularity: 35, languages: ["English"], adult: false },
 
   // === CLASSICS (before 2000) ===

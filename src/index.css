@@ -99,3 +99,46 @@ h1, h2, h3, h4, h5, h6 {
   border-color: #FF7A2F;
   color: #FF7A2F;
 }
+
+/* Accessibility: Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .loading-glow {
+    animation: none;
+  }
+  
+  .fade-in {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Accessibility: Focus visible styles */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #FF7A2F;
+  outline-offset: 2px;
+}
+
+/* Accessibility: Skip to main content (hidden until focused) */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #FF7A2F;
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}

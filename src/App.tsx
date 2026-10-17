@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import Hero from './components/Hero';
 import WizardStep from './components/WizardStep';
 import Results from './components/Results';
@@ -7,7 +7,28 @@ import TitleDisambiguation from './components/TitleDisambiguation';
 import { Movie, WizardAnswers } from './types';
 import { getMockMovies } from './mockData';
 
-type Screen = 'hero' | 'wizard' | 'smart-search' | 'loading' | 'results';
+type Screen = 'hero' | 'wizard' | 'smart-search' | 'loading' | 'results' | 'error';
+
+interface FeedbackState {
+  watchedIds: number[];
+  notInterestedIds: number[];
+  likedIds: number[];
+}
+
+const safeGetItem = (key: string, fallback: any) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const safeSetItem = (key: string, value: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+};
 
 const MOODS = ['Happy', 'Relaxed', 'Tired', 'Stressed', 'Romantic', 'Adventurous', 'Curious', 'Sad'];
 const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family', 'Fantasy', 'Horror', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller'];
@@ -41,17 +62,20 @@ export default function App() {
   const [clarification, setClarification] = useState<string | null>(null);
   const [ambiguousTitles, setAmbiguousTitles] = useState<any[]>([]);
   const [appMode, setAppMode] = useState<'live' | 'demo' | 'unknown'>('unknown');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackState>(() => 
+    safeGetItem('movie_feedback', { watchedIds: [], notInterestedIds: [], likedIds: [] })
+  );
+  
+  const requestIdRef = useRef(0);
+  const lastQueryRef = useRef<{ query?: string; structuredInputs?: any } | null>(null);
 
-  // Check app mode on mount
   useEffect(() => {
     fetch('/api/status')
       .then(res => res.json())
-      .then(data => {
-        setAppMode(data.mode);
-      })
-      .catch(() => {
-        setAppMode('demo');
-      });
+      .then(data => setAppMode(data.mode))
+      .catch(() => setAppMode('demo'));
   }, []);
 
   const progress = screen === 'wizard' ? ((step + 1) / TOTAL_STEPS) * 100 : 0;
@@ -66,6 +90,11 @@ export default function App() {
   };
 
   const handleSmartSearch = async (query: string) => {
+    if (isLoading) return;
+    
+    const currentRequestId = ++requestIdRef.current;
+    setIsLoading(true);
+    setError(null);
     setScreen('loading');
     setClarification(null);
 
@@ -82,7 +111,13 @@ export default function App() {
       audience: answers.audience || undefined,
       maxRuntime: answers.maxRuntime || undefined,
       languages: answers.languages.length > 0 ? answers.languages : undefined,
+      preferences: answers.preferences,
+      watchedIds: feedback.watchedIds,
+      notInterestedIds: feedback.notInterestedIds,
+      likedIds: feedback.likedIds,
     };
+
+    lastQueryRef.current = { query, structuredInputs };
 
     try {
       const res = await fetch('/api/smart-recommend', {
@@ -91,31 +126,49 @@ export default function App() {
         body: JSON.stringify({
           query,
           structuredInputs,
-          excludeIds,
+          excludeIds: [...excludeIds, ...feedback.watchedIds, ...feedback.notInterestedIds],
         }),
       });
-      if (!res.ok) throw new Error('API error');
+      
+      if (currentRequestId !== requestIdRef.current) return;
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
       const data = await res.json();
       
-      // Check if there are ambiguous titles that need user clarification
       if (data.ambiguousTitles && data.ambiguousTitles.length > 0) {
         setAmbiguousTitles(data.ambiguousTitles);
         setClarification(data.clarification || null);
         setMovies([]);
         setScreen('results');
+        setIsLoading(false);
+        return;
+      }
+      
+      if (!data.movies || data.movies.length === 0) {
+        setError('No movies found matching your criteria. Try adjusting your preferences.');
+        setScreen('error');
+        setIsLoading(false);
         return;
       }
       
       setMovies(data.movies);
-      setExcludeIds([...excludeIds, ...data.movies.map((m: Movie) => m.id)]);
+      setExcludeIds(prev => [...prev, ...data.movies.map((m: Movie) => m.id)]);
       setClarification(data.clarification || null);
       setScreen('results');
-    } catch {
-      // Fallback to mock data
-      const mockMovies = getMockMovies(answers, excludeIds);
-      setMovies(mockMovies);
-      setExcludeIds([...excludeIds, ...mockMovies.map(m => m.id)]);
-      setScreen('results');
+      setIsLoading(false);
+    } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return;
+      console.error('Smart search error:', err);
+      
+      const mockMovies = getMockMovies(answers, [...excludeIds, ...feedback.watchedIds, ...feedback.notInterestedIds]);
+      if (mockMovies.length > 0) {
+        setMovies(mockMovies);
+        setExcludeIds(prev => [...prev, ...mockMovies.map(m => m.id)]);
+        setScreen('results');
+      } else {
+        setError('Unable to fetch recommendations. Please check your connection and try again.');
+        setScreen('error');
+      }
+      setIsLoading(false);
     }
   };
 
@@ -136,7 +189,13 @@ export default function App() {
   };
 
   const fetchMoviesWizard = async () => {
+    if (isLoading) return;
+    
+    const currentRequestId = ++requestIdRef.current;
+    setIsLoading(true);
+    setError(null);
     setScreen('loading');
+    
     const maxRuntimeMap: Record<string, number> = {
       'Under 90 min': 90,
       'Under 2 hours': 120,
@@ -152,8 +211,13 @@ export default function App() {
       languages: answers.languages.includes('Any') || answers.languages.length === 0 ? [] : answers.languages,
       preferences: answers.preferences,
       note: answers.note,
-      excludeIds,
+      excludeIds: [...excludeIds, ...feedback.watchedIds, ...feedback.notInterestedIds],
+      watchedIds: feedback.watchedIds,
+      notInterestedIds: feedback.notInterestedIds,
+      likedIds: feedback.likedIds,
     };
+
+    lastQueryRef.current = { structuredInputs: payload };
 
     try {
       const res = await fetch('/api/recommend', {
@@ -161,27 +225,70 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('API error');
+      
+      if (currentRequestId !== requestIdRef.current) return;
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
       const data = await res.json();
+      
+      if (!data.movies || data.movies.length === 0) {
+        setError('No movies found matching your criteria. Try adjusting your preferences.');
+        setScreen('error');
+        setIsLoading(false);
+        return;
+      }
+      
       setMovies(data.movies);
-      setExcludeIds([...excludeIds, ...data.movies.map((m: Movie) => m.id)]);
+      setExcludeIds(prev => [...prev, ...data.movies.map((m: Movie) => m.id)]);
       setScreen('results');
-    } catch {
-      // Fallback to mock data for demo
-      const mockMovies = getMockMovies(answers, excludeIds);
-      setMovies(mockMovies);
-      setExcludeIds([...excludeIds, ...mockMovies.map((m: Movie) => m.id)]);
-      setScreen('results');
+      setIsLoading(false);
+    } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return;
+      console.error('Wizard fetch error:', err);
+      
+      const mockMovies = getMockMovies(answers, [...excludeIds, ...feedback.watchedIds, ...feedback.notInterestedIds]);
+      if (mockMovies.length > 0) {
+        setMovies(mockMovies);
+        setExcludeIds(prev => [...prev, ...mockMovies.map(m => m.id)]);
+        setScreen('results');
+      } else {
+        setError('Unable to fetch recommendations. Please try again.');
+        setScreen('error');
+      }
+      setIsLoading(false);
     }
   };
 
-  const handleShowMore = () => {
-    if (screen === 'smart-search') {
-      // Re-run smart search
-      fetchMoviesWizard();
+  const handleFeedback = useCallback((movieId: number, type: 'watched' | 'not-interested' | 'liked') => {
+    setFeedback(prev => {
+      const next = { ...prev };
+      if (type === 'watched') {
+        next.watchedIds = prev.watchedIds.includes(movieId) 
+          ? prev.watchedIds.filter(id => id !== movieId)
+          : [...prev.watchedIds, movieId];
+      } else if (type === 'not-interested') {
+        next.notInterestedIds = prev.notInterestedIds.includes(movieId)
+          ? prev.notInterestedIds.filter(id => id !== movieId)
+          : [...prev.notInterestedIds, movieId];
+      } else if (type === 'liked') {
+        next.likedIds = prev.likedIds.includes(movieId)
+          ? prev.likedIds.filter(id => id !== movieId)
+          : [...prev.likedIds, movieId];
+      }
+      safeSetItem('movie_feedback', next);
+      return next;
+    });
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    if (lastQueryRef.current?.query) {
+      handleSmartSearch(lastQueryRef.current.query);
     } else {
       fetchMoviesWizard();
     }
+  }, []);
+
+  const handleShowMore = () => {
+    fetchMoviesWizard();
   };
 
   const handleStartOver = () => {
@@ -199,6 +306,7 @@ export default function App() {
     setExcludeIds([]);
     setMovies([]);
     setClarification(null);
+    setError(null);
   };
 
   const updateAnswer = useCallback(<K extends keyof WizardAnswers>(key: K, value: WizardAnswers[K]) => {
@@ -329,14 +437,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#0A0A0A' }}>
-      {/* Progress bar */}
       {screen === 'wizard' && (
         <div className="fixed top-0 left-0 right-0 h-1 bg-[#141414] z-50">
           <div className="progress-bar h-full" style={{ width: `${progress}%` }} />
         </div>
       )}
 
-      {/* Main content */}
       <main className="flex-1 flex items-center justify-center px-4 py-8 md:py-12">
         {screen === 'hero' && (
           <Hero onStartWizard={handleStartWizard} onStartSmartSearch={handleStartSmartSearch} appMode={appMode} />
@@ -354,6 +460,7 @@ export default function App() {
               <button
                 onClick={handleNext}
                 disabled={
+                  isLoading ||
                   (step === 0 && !answers.mood) ||
                   (step === 1 && answers.genres.length === 0) ||
                   (step === 2 && !answers.audience) ||
@@ -370,6 +477,7 @@ export default function App() {
           <SmartSearch
             onSearch={handleSmartSearch}
             onBack={() => setScreen('hero')}
+            isLoading={isLoading}
           />
         )}
         {screen === 'loading' && (
@@ -378,12 +486,31 @@ export default function App() {
             <p className="text-[#8C8C8C] text-lg">Finding your perfect movies...</p>
           </div>
         )}
+        {screen === 'error' && (
+          <div className="text-center fade-in max-w-md">
+            <div className="text-5xl mb-4">😕</div>
+            <p className="text-xl text-[#F5F5F5] mb-2">Something went wrong</p>
+            <p className="text-[#8C8C8C] mb-6">{error || 'Unable to fetch recommendations.'}</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleRetry}
+                className="gradient-btn px-6 py-3 rounded-full text-white font-medium"
+              >
+                Try again
+              </button>
+              <button
+                onClick={handleStartOver}
+                className="px-6 py-3 rounded-full text-[#8C8C8C] border border-[#232323] hover:border-[#FF7A2F] hover:text-[#F5F5F5] transition-all duration-200"
+              >
+                Start over
+              </button>
+            </div>
+          </div>
+        )}
         {screen === 'results' && ambiguousTitles.length > 0 && (
           <TitleDisambiguation
             ambiguousTitles={ambiguousTitles}
             onConfirm={() => {
-              // For now, just clear ambiguous titles and show empty results
-              // In a full implementation, we'd re-run the search with confirmed titles
               setAmbiguousTitles([]);
               setClarification(null);
             }}
@@ -396,11 +523,12 @@ export default function App() {
             onShowMore={handleShowMore}
             onStartOver={handleStartOver}
             clarification={clarification}
+            onFeedback={handleFeedback}
+            feedback={feedback}
           />
         )}
       </main>
 
-      {/* Footer */}
       <footer className="text-center py-4 text-xs text-[#8C8C8C]">
         Movie data by TMDB
       </footer>

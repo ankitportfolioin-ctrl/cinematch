@@ -3,14 +3,22 @@ import { makeFallbackPoster } from '../mockData';
 
 const DEFAULT_FALLBACK = makeFallbackPoster('Movie', '#1a1a1a', '#232323');
 
+interface FeedbackState {
+  watchedIds: number[];
+  notInterestedIds: number[];
+  likedIds: number[];
+}
+
 interface ResultsProps {
   movies: Movie[];
   onShowMore: () => void;
   onStartOver: () => void;
   clarification?: string | null;
+  onFeedback?: (movieId: number, type: 'watched' | 'not-interested' | 'liked') => void;
+  feedback?: FeedbackState;
 }
 
-export default function Results({ movies, onShowMore, onStartOver, clarification }: ResultsProps) {
+export default function Results({ movies, onShowMore, onStartOver, clarification, onFeedback, feedback }: ResultsProps) {
   if (movies.length === 0) {
     return (
       <div className="text-center fade-in">
@@ -46,7 +54,13 @@ export default function Results({ movies, onShowMore, onStartOver, clarification
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         {movies.map((movie, index) => (
-          <MovieCard key={movie.id} movie={movie} delay={index * 150} />
+          <MovieCard 
+            key={movie.id} 
+            movie={movie} 
+            delay={index * 150}
+            onFeedback={onFeedback}
+            feedback={feedback}
+          />
         ))}
       </div>
 
@@ -68,7 +82,12 @@ export default function Results({ movies, onShowMore, onStartOver, clarification
   );
 }
 
-function MovieCard({ movie, delay }: { movie: Movie; delay: number }) {
+function MovieCard({ movie, delay, onFeedback, feedback }: { 
+  movie: Movie; 
+  delay: number;
+  onFeedback?: (movieId: number, type: 'watched' | 'not-interested' | 'liked') => void;
+  feedback?: FeedbackState;
+}) {
   return (
     <div
       className="card overflow-hidden flex flex-col"
@@ -149,47 +168,49 @@ function MovieCard({ movie, delay }: { movie: Movie; delay: number }) {
         )}
 
         {/* Feedback buttons */}
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => {
-              try {
-                const feedback = JSON.parse(localStorage.getItem('movieNightPicker_feedback') || '[]');
-                feedback.push({ tmdbId: movie.id, mediaType: movie.mediaType || 'movie', feedbackType: 'more_like_this', timestamp: Date.now() });
-                localStorage.setItem('movieNightPicker_feedback', JSON.stringify(feedback));
-              } catch {}
-            }}
-            className="text-xs text-[#8C8C8C] hover:text-[#FF7A2F] transition-colors px-2 py-1 rounded border border-[#232323] hover:border-[#FF7A2F]"
-            title="More like this"
-          >
-            👍
-          </button>
-          <button
-            onClick={() => {
-              try {
-                const feedback = JSON.parse(localStorage.getItem('movieNightPicker_feedback') || '[]');
-                feedback.push({ tmdbId: movie.id, mediaType: movie.mediaType || 'movie', feedbackType: 'not_interested', timestamp: Date.now() });
-                localStorage.setItem('movieNightPicker_feedback', JSON.stringify(feedback));
-              } catch {}
-            }}
-            className="text-xs text-[#8C8C8C] hover:text-[#E63946] transition-colors px-2 py-1 rounded border border-[#232323] hover:border-[#E63946]"
-            title="Not interested"
-          >
-            👎
-          </button>
-          <button
-            onClick={() => {
-              try {
-                const feedback = JSON.parse(localStorage.getItem('movieNightPicker_feedback') || '[]');
-                feedback.push({ tmdbId: movie.id, mediaType: movie.mediaType || 'movie', feedbackType: 'already_watched', timestamp: Date.now() });
-                localStorage.setItem('movieNightPicker_feedback', JSON.stringify(feedback));
-              } catch {}
-            }}
-            className="text-xs text-[#8C8C8C] hover:text-[#F5F5F5] transition-colors px-2 py-1 rounded border border-[#232323] hover:border-[#F5F5F5]"
-            title="Already watched"
-          >
-            ✓
-          </button>
-        </div>
+        {onFeedback && (
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={() => onFeedback(movie.id, 'liked')}
+              className={`text-xs transition-colors px-2 py-1 rounded border ${
+                feedback?.likedIds.includes(movie.id)
+                  ? 'text-[#FF7A2F] border-[#FF7A2F] bg-[#FF7A2F]/10'
+                  : 'text-[#8C8C8C] border-[#232323] hover:border-[#FF7A2F] hover:text-[#FF7A2F]'
+              }`}
+              title="More like this"
+              aria-label="Mark as liked"
+              aria-pressed={feedback?.likedIds.includes(movie.id)}
+            >
+              👍
+            </button>
+            <button
+              onClick={() => onFeedback(movie.id, 'not-interested')}
+              className={`text-xs transition-colors px-2 py-1 rounded border ${
+                feedback?.notInterestedIds.includes(movie.id)
+                  ? 'text-[#E63946] border-[#E63946] bg-[#E63946]/10'
+                  : 'text-[#8C8C8C] border-[#232323] hover:border-[#E63946] hover:text-[#E63946]'
+              }`}
+              title="Not interested"
+              aria-label="Mark as not interested"
+              aria-pressed={feedback?.notInterestedIds.includes(movie.id)}
+            >
+              👎
+            </button>
+            <button
+              onClick={() => onFeedback(movie.id, 'watched')}
+              className={`text-xs transition-colors px-2 py-1 rounded border ${
+                feedback?.watchedIds.includes(movie.id)
+                  ? 'text-[#F5F5F5] border-[#F5F5F5] bg-[#F5F5F5]/10'
+                  : 'text-[#8C8C8C] border-[#232323] hover:border-[#F5F5F5] hover:text-[#F5F5F5]'
+              }`}
+              title="Already watched"
+              aria-label="Mark as watched"
+              aria-pressed={feedback?.watchedIds.includes(movie.id)}
+            >
+              ✓
+            </button>
+          </div>
+        )}
 
         {/* Where to watch */}
         <div className="mt-auto pt-3 border-t border-[#232323]">

@@ -3,6 +3,7 @@ import { useState } from 'react';
 interface SmartSearchProps {
   onSearch: (query: string) => void;
   onBack: () => void;
+  isLoading?: boolean;
 }
 
 const EXAMPLE_QUERIES = [
@@ -13,7 +14,7 @@ const EXAMPLE_QUERIES = [
   "Feel-good animation for the family",
 ];
 
-export default function SmartSearch({ onSearch, onBack }: SmartSearchProps) {
+export default function SmartSearch({ onSearch, onBack, isLoading = false }: SmartSearchProps) {
   const [query, setQuery] = useState('');
   const [validationError, setValidationError] = useState('');
 
@@ -68,10 +69,10 @@ export default function SmartSearch({ onSearch, onBack }: SmartSearchProps) {
           <span className="text-xs text-[#8C8C8C]">{query.length}/500</span>
           <button
             type="submit"
-            disabled={!query.trim()}
+            disabled={!query.trim() || isLoading}
             className="gradient-btn px-8 py-3 rounded-full text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none"
           >
-            Find my movies
+            {isLoading ? 'Searching...' : 'Find my movies'}
           </button>
         </div>
       </form>

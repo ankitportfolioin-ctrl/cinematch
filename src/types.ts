@@ -28,6 +28,7 @@ export interface Movie {
   isHiddenGem?: boolean;
   matchScore?: number;
   mediaType?: string;
+  topics?: string[];
 }
 
 export interface UserData {
