@@ -50,6 +50,7 @@ const INTENSITY_MAP = {
  */
 export function rankCandidates(candidates, preferences, resolvedTitles, options = {}) {
   const weights = { ...DEFAULT_WEIGHTS, ...options.weights };
+  const random = options.random || Math.random; // Use seeded random if provided
   
   // Calculate which signals are available
   const availableSignals = {

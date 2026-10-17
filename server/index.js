@@ -9,10 +9,12 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { parseUserQuery, validatePreferences } from './modules/queryParser.js';
-import { resolveTitles, getSimilarTitles, getRecommendations } from './modules/titleResolver.js';
+import { resolveTitles, getSimilarTitles, getRecommendations as getTMDBRecommendations } from './modules/titleResolver.js';
 import { retrieveCandidates, getFullDetails } from './modules/candidateRetriever.js';
 import { rankCandidates } from './modules/ranker.js';
 import { generateExplanation, generateClarification } from './modules/explainer.js';
+import { getRecommendations as getSharedRecommendations } from './modules/recommendationService.js';
+import { getMockMovies } from '../src/mockData.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -626,8 +628,9 @@ app.post('/api/smart-recommend', async (req, res) => {
 });
 
 // Serve frontend for all other routes (only in local development)
+// Express 5 compatible wildcard route
 if (process.env.VERCEL !== '1') {
-  app.get('*', (req, res) => {
+  app.get('/{*splat}', (req, res) => {
     const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
     res.sendFile(indexPath, (err) => {
       if (err) {
