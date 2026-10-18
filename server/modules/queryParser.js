@@ -1,0 +1,331 @@
+/**
+ * Query Parser - Converts natural language to structured preferences
+ * Deterministic implementation (no LLM required)
+ */
+
+// Mood keywords mapped to preference hints
+const MOOD_KEYWORDS = {
+  tired: { watchEffort: 'low', intensity: 'low' },
+  exhausted: { watchEffort: 'low', intensity: 'low' },
+  relaxed: { watchEffort: 'low', intensity: 'low' },
+  chill: { watchEffort: 'low', intensity: 'low' },
+  comfortable: { watchEffort: 'low', intensity: 'low' },
+  easy: { watchEffort: 'low' },
+  'low effort': { watchEffort: 'low' },
+  'easy watch': { watchEffort: 'low' },
+  
+  intense: { intensity: 'high' },
+  adrenaline: { intensity: 'high' },
+  'edge of my seat': { intensity: 'high' },
+  thrilling: { intensity: 'high' },
+  exciting: { intensity: 'high' },
+  
+  comforting: { mood: 'comforting' },
+  'feel-good': { mood: 'uplifting' },
+  uplifting: { mood: 'uplifting' },
+  happy: { mood: 'uplifting' },
+  cheerful: { mood: 'uplifting' },
+  
+  romantic: { mood: 'romantic' },
+  // Removed 'love' - too ambiguous, conflicts with title extraction like "I love The Godfather"
+  
+  curious: { mood: 'thought-provoking' },
+  'mind-bending': { mood: 'thought-provoking' },
+  mysterious: { mood: 'thought-provoking' },
+  
+  sad: { mood: 'emotional' },
+  emotional: { mood: 'emotional' },
+  touching: { mood: 'emotional' },
+};
+
+// Genre keywords
+const GENRE_KEYWORDS = {
+  action: 'Action',
+  adventure: 'Adventure',
+  animation: 'Animation',
+  anime: 'Animation',
+  comedy: 'Comedy',
+  funny: 'Comedy',
+  crime: 'Crime',
+  documentary: 'Documentary',
+  drama: 'Drama',
+  family: 'Family',
+  'kids': 'Family',
+  fantasy: 'Fantasy',
+  horror: 'Horror',
+  scary: 'Horror',
+  mystery: 'Mystery',
+  romance: 'Romance',
+  'romantic': 'Romance',
+  'sci-fi': 'Sci-Fi',
+  scifi: 'Sci-Fi',
+  'science fiction': 'Sci-Fi',
+  thriller: 'Thriller',
+  suspense: 'Thriller',
+};
+
+// Content exclusion keywords
+const EXCLUDE_KEYWORDS = {
+  violent: ['violence', 'violent', 'bloody', 'gory', 'brutal', 'sadistic', 'gore'],
+  scary: ['scary', 'horror', 'frightening', 'terrifying', 'jump scare', 'jump scares'],
+  sad: ['sad', 'depressing', 'tragic', 'death'],
+  complex: ['complex', 'complicated', 'confusing', 'hard to follow'],
+  long: ['long', 'slow', 'boring'],
+  old: ['old', 'classic', 'vintage', 'before 2000'],
+  new: ['new', 'recent', 'latest', 'modern'],
+};
+
+// Topic/keyword extraction for semantic matching
+const TOPIC_KEYWORDS = {
+  'money': ['money', 'finance', 'financial', 'wealth', 'rich', 'banking', 'banker'],
+  'heist': ['heist', 'robbery', 'rob', 'steal', 'thief', 'criminal', 'caper'],
+  'wall street': ['wall street', 'stock', 'trading', 'trader', 'investment', 'broker'],
+  'war': ['war', 'military', 'soldier', 'army', 'battle', 'combat'],
+  'space': ['space', 'astronaut', 'galaxy', 'planet', 'alien', 'cosmos'],
+  'detective': ['detective', 'investigation', 'police', 'cop', 'mystery', 'case'],
+  'romance': ['love', 'relationship', 'dating', 'marriage', 'couple', 'romantic'],
+  'survival': ['survival', 'survive', 'stranded', 'lost', 'wilderness', 'escape'],
+  'coming of age': ['growing up', 'teenager', 'adolescent', 'youth', 'coming of age'],
+  'revenge': ['revenge', 'vengeance', 'retribution', 'payback'],
+  'friendship': ['friendship', 'friends', 'buddy', 'companion'],
+  'family': ['family', 'parent', 'child', 'mother', 'father', 'sibling'],
+};
+
+// Runtime patterns
+const RUNTIME_PATTERNS = [
+  { regex: /under\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit.startsWith('h') ? num * 60 : num;
+  }},
+  { regex: /less than\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit.startsWith('h') ? num * 60 : num;
+  }},
+  { regex: /around\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit.startsWith('h') ? num * 60 : num;
+  }},
+  { regex: /about\s+(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)/i, handler: (match) => {
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit.startsWith('h') ? num * 60 : num;
+  }},
+  // Only match standalone runtime mentions, not in titles
+  { regex: /(?:^|\s)(\d+)\s*(min|minute|minutes|hour|hours|hr|hrs)(?:\s|$|[.,!?])/i, handler: (match) => {
+    const num = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    return unit.startsWith('h') ? num * 60 : num;
+  }},
+];
+
+// Title extraction patterns
+const TITLE_PATTERNS = [
+  /(?:like|love|loved|enjoy|enjoyed|favorite|favourite)\s+["']?([^"',.]+)["']?/gi,
+  /similar to\s+["']?([^"',.]+)["']?/gi,
+  /reminds me of\s+["']?([^"',.]+)["']?/gi,
+];
+
+const DISLIKE_PATTERNS = [
+  /(?:hate|dislike|don't like|dont like|no|avoid|not)\s+["']?([^"',.]+)["']?/gi,
+  /(?:don't want|dont want|no more)\s+["']?([^"',.]+)["']?/gi,
+];
+
+/**
+ * Parse natural language query into structured preferences
+ * @param {string} text - Natural language query
+ * @param {object} structuredInputs - Existing structured inputs (wizard selections)
+ * @returns {object} ParsedPreferences
+ */
+export function parseUserQuery(text = '', structuredInputs = {}) {
+  const preferences = {
+    mediaType: 'movie',
+    mood: [],
+    genres: [],
+    topics: [],
+    likedTitles: [],
+    dislikedTitles: [],
+    mustInclude: [],
+    excludeGenres: [],
+    excludeContent: [],
+    language: null,
+    region: null,
+    maxRuntimeMinutes: null,
+    releasePeriod: null,
+    intensity: null,
+    watchEffort: null,
+    clarificationNeeded: false,
+    clarificationQuestion: null,
+    rawQuery: text,
+  };
+
+  // Structured inputs take precedence
+  if (structuredInputs.mood) {
+    preferences.mood = [structuredInputs.mood.toLowerCase()];
+  }
+  if (structuredInputs.genres && structuredInputs.genres.length > 0) {
+    preferences.genres = structuredInputs.genres;
+  }
+  if (structuredInputs.maxRuntime) {
+    const runtimeMap = {
+      'Under 90 min': 90,
+      'Under 2 hours': 120,
+      'Under 2.5 hours': 150,
+      'Any length': null,
+    };
+    preferences.maxRuntimeMinutes = runtimeMap[structuredInputs.maxRuntime];
+  }
+  if (structuredInputs.languages && structuredInputs.languages.length > 0) {
+    preferences.language = structuredInputs.languages[0];
+  }
+
+  // Parse natural language if provided
+  if (text && text.trim()) {
+    const lowerText = text.toLowerCase();
+
+    // Extract mood/intensity/watchEffort
+    for (const [keyword, hints] of Object.entries(MOOD_KEYWORDS)) {
+      // Use word boundary matching to avoid false positives
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        if (hints.mood && !preferences.mood.includes(hints.mood)) {
+          preferences.mood.push(hints.mood);
+        }
+        if (hints.intensity && !preferences.intensity) {
+          preferences.intensity = hints.intensity;
+        }
+        if (hints.watchEffort && !preferences.watchEffort) {
+          preferences.watchEffort = hints.watchEffort;
+        }
+      }
+    }
+
+    // Extract genres
+    for (const [keyword, genre] of Object.entries(GENRE_KEYWORDS)) {
+      // Use word boundary matching
+      const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(lowerText) && !preferences.genres.includes(genre)) {
+        preferences.genres.push(genre);
+      }
+    }
+
+    // Extract runtime
+    for (const pattern of RUNTIME_PATTERNS) {
+      const match = text.match(pattern.regex);
+      if (match) {
+        preferences.maxRuntimeMinutes = pattern.handler(match);
+        break;
+      }
+    }
+
+    // Extract liked titles
+    for (const pattern of TITLE_PATTERNS) {
+      const matches = [...text.matchAll(pattern)];
+      for (const match of matches) {
+        const title = match[1].trim();
+        if (title && title.length > 1 && title.length < 100) {
+          preferences.likedTitles.push(title);
+        }
+      }
+    }
+
+    // Extract disliked titles
+    for (const pattern of DISLIKE_PATTERNS) {
+      const matches = [...text.matchAll(pattern)];
+      for (const match of matches) {
+        const title = match[1].trim();
+        if (title && title.length > 1 && title.length < 100) {
+          preferences.dislikedTitles.push(title);
+        }
+      }
+    }
+
+    // Extract content exclusions
+    for (const [category, keywords] of Object.entries(EXCLUDE_KEYWORDS)) {
+      for (const keyword of keywords) {
+        const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(lowerText)) {
+          if (category === 'violent' || category === 'scary') {
+            if (!preferences.excludeContent.includes(category)) {
+              preferences.excludeContent.push(category);
+            }
+          }
+          if (category === 'old') {
+            preferences.releasePeriod = 'classic';
+          }
+          if (category === 'new') {
+            preferences.releasePeriod = 'recent';
+          }
+        }
+      }
+    }
+
+    // Extract topics/keywords
+    for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
+      for (const keyword of keywords) {
+        const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (regex.test(lowerText) && !preferences.topics.includes(topic)) {
+          preferences.topics.push(topic);
+        }
+      }
+    }
+
+    // Detect conflicts for clarification
+    if (preferences.watchEffort === 'low' && preferences.intensity === 'high') {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You mentioned wanting something easy but also intense. Would you prefer easy-to-follow action or something more intense?';
+    }
+    
+    // Detect other common conflicts
+    if (preferences.mood.includes('comforting') && preferences.genres.includes('Horror')) {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You want something comforting but also horror. Would you prefer a lighter horror or skip the horror?';
+    }
+    
+    if (preferences.mood.includes('uplifting') && preferences.genres.includes('Thriller')) {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You want something uplifting but also a thriller. Thrillers can be tense - is that okay?';
+    }
+    
+    if (preferences.maxRuntimeMinutes && preferences.maxRuntimeMinutes < 90 && preferences.genres.includes('Drama')) {
+      preferences.clarificationNeeded = true;
+      preferences.clarificationQuestion = 'You want a short movie under 90 minutes but also drama. Dramas often run longer - should I prioritize runtime or genre?';
+    }
+  }
+
+  return preferences;
+}
+
+/**
+ * Validate parsed preferences
+ * @param {object} prefs - Parsed preferences
+ * @returns {object} Validated preferences with corrections
+ */
+export function validatePreferences(prefs) {
+  const validated = { ...prefs };
+
+  // Ensure arrays
+  validated.mood = Array.isArray(validated.mood) ? validated.mood : [];
+  validated.genres = Array.isArray(validated.genres) ? validated.genres : [];
+  validated.topics = Array.isArray(validated.topics) ? validated.topics : [];
+  validated.likedTitles = Array.isArray(validated.likedTitles) ? validated.likedTitles : [];
+  validated.dislikedTitles = Array.isArray(validated.dislikedTitles) ? validated.dislikedTitles : [];
+  validated.excludeGenres = Array.isArray(validated.excludeGenres) ? validated.excludeGenres : [];
+  validated.excludeContent = Array.isArray(validated.excludeContent) ? validated.excludeContent : [];
+
+  // Validate enums
+  const validMoods = ['comforting', 'uplifting', 'romantic', 'thought-provoking', 'emotional'];
+  validated.mood = validated.mood.filter(m => validMoods.includes(m));
+
+  const validGenres = Object.values(GENRE_KEYWORDS);
+  validated.genres = validated.genres.filter(g => validGenres.includes(g));
+
+  // Validate runtime
+  if (validated.maxRuntimeMinutes !== null) {
+    validated.maxRuntimeMinutes = Math.max(30, Math.min(300, validated.maxRuntimeMinutes));
+  }
+
+  return validated;
+}
